@@ -69,8 +69,7 @@ public:
     void motion(char line[2]);
     double Walk(double x, double y, double a);
     void headMove(double pan, double tilt);
-    void publishButton();
-    void publishImu();
+    void publishSensor();
     void getSensor();
 
 private:
@@ -82,8 +81,7 @@ private:
     rclcpp::TimerBase::SharedPtr timer_button_;
     rclcpp::TimerBase::SharedPtr timer_imu_;
 
-    double accelero_x, accelero_y, accelero_z, gyroscope_x, gyroscope_y, gyroscope_z = 0;
-    int roll, pitch, yaw, strategy, kill = 0;
+    int accelero_x, accelero_y, accelero_z, gyroscope_x, gyroscope_y, gyroscope_z, roll, pitch, yaw, strategy, kill, voltage = 0;
 };
 
 motion_bridge::motion_bridge() : Node("motion_bridge")
@@ -105,8 +103,9 @@ motion_bridge::motion_bridge() : Node("motion_bridge")
     RCLCPP_INFO(this->get_logger(), "robot_motion has been started.");
 
     button_state_ = this->create_publisher<bfc_msgs::msg::Button>("robot_button", 10);
+    imu_state_ = this->create_publisher<sensor_msgs::msg::Imu>("robot_imu", 10);
     timer_button_ = this->create_wall_timer(std::chrono::milliseconds(50),
-                                            std::bind(&motion_bridge::publishButton, this));
+                                            std::bind(&motion_bridge::publishSensor, this));
 }
 
 void motion_bridge::walkCommand(const geometry_msgs::msg::Twist::SharedPtr msg)
@@ -124,21 +123,19 @@ void motion_bridge::motionCommand(const std_msgs::msg::String::SharedPtr msg)
     motion(&msg->data[0]);
 }
 
-void motion_bridge::publishButton()
+void motion_bridge::publishSensor()
 {
-    auto msg = bfc_msgs::msg::Button();
-    msg.strategy = strategy;
-    msg.kill = kill;
-    button_state_->publish(msg);
-}
+    getSensor();
+    auto msg_button_ = bfc_msgs::msg::Button();
+    msg_button_.strategy = strategy;
+    msg_button_.kill = kill;
+    button_state_->publish(msg_button_);
 
-void motion_bridge::publishImu()
-{
-    auto msg = sensor_msgs::msg::Imu();
-    msg.angular_velocity.x = roll;
-    msg.angular_velocity.y = pitch;
-    msg.angular_velocity.z = yaw;
-    imu_state_->publish(msg);
+    auto msg_imu_ = sensor_msgs::msg::Imu();
+    msg_imu_.angular_velocity.x = roll;
+    msg_imu_.angular_velocity.y = pitch;
+    msg_imu_.angular_velocity.z = yaw;
+    imu_state_->publish(msg_imu_);
 }
 
 void motion_bridge::motion(char line[2])
@@ -167,67 +164,40 @@ void motion_bridge::headMove(double pan, double tilt)
     printf("  data head = %s\n", dataHead);
 }
 
+int countParse = 0;
 void motion_bridge::getSensor()
 {
     char line[100];
-    char *spr;
-    int countParse = 0;
+	char * spr;
 
-    FILE *outputfp;
-    outputfp = fopen("/home/nvidia/BarelangFC_ROS2/src/motion/src/source_code/Player/SensorNote", "r");
-    fscanf(outputfp, "%s", line);
-    spr = strtok(line, ";");
-    while (spr != NULL)
-    {
-        if (countParse == 0)
-        {
-            sscanf(spr, "%lf", &accelero_x);
-        } // x					#dpn-blkng
-        else if (countParse == 1)
-        {
-            sscanf(spr, "%lf", &accelero_y);
-        } // y					#kiri-kanan
-        else if (countParse == 2)
-        {
-            sscanf(spr, "%lf", &accelero_z);
-        } // z
-        else if (countParse == 3)
-        {
-            sscanf(spr, "%lf", &gyroscope_x);
-        } //				#kiri-kanan
-        else if (countParse == 4)
-        {
-            sscanf(spr, "%lf", &gyroscope_y);
-        } //				#dpn-blkng
-        else if (countParse == 5)
-        {
-            sscanf(spr, "%lf", &gyroscope_z);
-        } //
-        else if (countParse == 6)
-        {
-            sscanf(spr, "%lf", &roll);
-        } // roll
-        else if (countParse == 7)
-        {
-            sscanf(spr, "%lf", &pitch);
-        } // pitch
-        else if (countParse == 8)
-        {
-            sscanf(spr, "%lf", &yaw);
-        } // yaw
-        else if (countParse == 9)
-        {
-            sscanf(spr, "%d", &strategy);
-        } //
-        else if (countParse == 10)
-        {
-            sscanf(spr, "%d", &kill);
-            countParse = -1;
-        } //
-        spr = strtok(NULL, ";");
-        countParse++;
-    }   
-    fclose(outputfp);
+	FILE *outputfp;
+	outputfp = fopen("/home/nvidia/Music/BarelangFC_ROS2/src/bfc_motion_bridge/source_code/Player/SensorNote", "r");
+	fscanf(outputfp, "%s", &line);
+	countParse = 0;
+	spr = strtok (line, ";");
+	while (spr != NULL) {
+		if (countParse == 0)	  { sscanf(spr, "%ld", &accelero_x); } //x					#dpn-blkng
+		else if (countParse == 1) { sscanf(spr, "%ld", &accelero_y); } //y					#kiri-kanan
+		else if (countParse == 2) { sscanf(spr, "%ld", &accelero_z); } //z
+		else if (countParse == 3) { sscanf(spr, "%ld", &gyroscope_x); } //				#kiri-kanan
+		else if (countParse == 4) { sscanf(spr, "%ld", &gyroscope_y); } //				#dpn-blkng
+		else if (countParse == 5) { sscanf(spr, "%ld", &gyroscope_z); } //
+		else if (countParse == 6) { sscanf(spr, "%ld", &roll); } //roll
+		else if (countParse == 7) { sscanf(spr, "%ld", &pitch); } //pitch
+		else if (countParse == 8) { sscanf(spr, "%ld", &yaw); } //yaw
+		else if (countParse == 9) { sscanf(spr, "%ld", &strategy); } //
+		else if (countParse == 10) { sscanf(spr, "%ld", &kill); }
+		else if (countParse == 11) { sscanf(spr, "%ld", &voltage); //countParse = -1; 
+		} //
+		spr = strtok (NULL,";");
+		countParse++;
+	}
+	fclose(outputfp);
+    printf("countParse = %d\n", countParse);
+	printf("  accr(%ld, %ld, %ld)", accelero_x, accelero_y, accelero_z);
+	printf("  gyro(%ld, %ld, %ld)", gyroscope_x, gyroscope_y, gyroscope_z);
+	printf("  angle(%ld, %ld, %ld)\n", roll, pitch, yaw);
+	printf("  strategy,killNrun(%ld, %ld)\n", strategy, kill);
 }
 
 int main(int argc, char **argv)
